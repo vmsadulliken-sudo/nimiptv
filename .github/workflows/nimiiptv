@@ -1,0 +1,1039 @@
+#!/bin/bash
+# create_iptv_project.sh – Erstellt komplettes IPTV-Player Projekt
+# Nutzung: bash create_iptv_project.sh
+
+set -e
+
+PROJECT_NAME="IPTVPlayer"
+PACKAGE_PATH="com/yourcompany/iptvplayer"
+SRC_DIR="app/src/main/java/${PACKAGE_PATH//.//}"
+
+echo "🚀 Erstelle Projekt: $PROJECT_NAME..."
+
+# Projekt-Grundstruktur
+mkdir -p "$PROJECT_NAME"
+cd "$PROJECT_NAME"
+
+# Root Gradle Files
+cat > "build.gradle" << 'GRADLE_ROOT'
+// Top-level build file
+buildscript {
+    ext {
+        kotlin_version = '1.9.22'
+        agp_version = '8.2.2'
+        compose_bom = '2024.02.00'
+        exoplayer_version = '2.19.1'
+    }
+    repositories { google(); mavenCentral() }
+    dependencies {
+        classpath "com.android.tools.build:gradle:$agp_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "com.google.dagger:hilt-android-gradle-plugin:2.50"
+    }
+}
+plugins {
+    id 'com.android.application' version "$agp_version" apply false
+    id 'org.jetbrains.kotlin.android' version "$kotlin_version" apply false
+    id 'com.google.devtools.ksp' version '1.9.22-1.0.17' apply false
+}
+task clean(type: Delete) { delete rootProject.buildDir }
+GRADLE_ROOT
+
+cat > "settings.gradle" << 'SETTINGS'
+pluginManagement {
+    repositories {
+        google(); mavenCentral(); gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories { google(); mavenCentral() }
+}
+rootProject.name = "IPTVPlayer"
+include ':app'
+SETTINGS
+
+cat > "gradle.properties" << 'PROPS'
+org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8
+org.gradle.parallel=true
+org.gradle.caching=true
+android.useAndroidX=true
+android.enableJetifier=false
+kotlin.code.style=official
+android.nonTransitiveRClass=true
+android.ndkVersion=26.1.10909125
+PROPS
+
+mkdir -p gradle/wrapper
+cat > "gradle/wrapper/gradle-wrapper.properties" << 'WRAPPER'
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+WRAPPER
+
+# App Module
+mkdir -p "app/src/main"
+cat > "app/build.gradle" << 'APP_GRADLE'
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'kotlin-kapt'
+    id 'com.google.dagger.hilt.android'
+    id 'com.google.devtools.ksp'
+}
+
+android {
+    namespace 'com.yourcompany.iptvplayer'
+    compileSdk 34
+    
+    defaultConfig {
+        applicationId "com.yourcompany.iptvplayer"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables.useSupportLibrary = true
+        ndk { abiFilters 'armeabi-v7a','arm64-v8a','x86','x86_64' }
+    }
+    
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug { applicationIdSuffix ".debug"; versionNameSuffix "-debug" }
+    }
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
+    }
+    kotlinOptions { jvmTarget = '17' }
+    
+    buildFeatures {
+        compose true
+        viewBinding true
+    }
+    composeOptions { kotlinCompilerExtensionVersion '1.5.8' }
+    
+    packagingOptions {
+        resources { excludes += '/META-INF/{AL2.0,LGPL2.1}' }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'androidx.activity:activity-compose:1.8.2'
+    
+    implementation platform("androidx.compose:compose-bom:$compose_bom")
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.material:material-icons-extended'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    
+    implementation "androidx.navigation:navigation-compose:2.7.7"
+    
+    // ExoPlayer + FFmpeg Extension
+    implementation "com.google.android.exoplayer:exoplayer:$exoplayer_version"
+    implementation "com.google.android.exoplayer:extension-leanback:$exoplayer_version"
+    implementation "com.google.android.exoplayer:extension-ffmpeg:$exoplayer_version"
+    
+    // Network
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'org.jsoup:jsoup:1.17.2'
+    
+    // DI & Storage
+    implementation "com.google.dagger:hilt-android:2.50"
+    kapt "com.google.dagger:hilt-compiler:2.50"
+    implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
+    implementation 'androidx.security:security-crypto-ktx:1.1.0-alpha06'
+    implementation 'androidx.datastore:datastore-preferences:1.0.0'
+    implementation "androidx.room:room-runtime:2.6.1"
+    implementation "androidx.room:room-ktx:2.6.1"
+    ksp "androidx.room:room-compiler:2.6.1"
+    
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'io.coil-kt:coil-compose:2.5.0'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+}
+kapt { correctErrorTypes = true }
+APP_GRADLE
+
+cat > "app/proguard-rules.pro" << 'PROGUARD'
+# ExoPlayer
+-keep class com.google.android.exoplayer2.** { *; }
+-keep class com.google.android.exoplayer2.ext.ffmpeg.** { *; }
+-keep class com.google.android.exoplayer2.ui.** { *; }
+
+# Hilt
+-keep class * extends com.google.dagger.hilt.android.* { *; }
+-dontwarn dagger.internal.**
+-keep class dagger.internal.** { *; }
+
+# Kotlin Coroutines
+-keepclassmembers class kotlinx.coroutines.** { *; }
+
+# Retrofit/Gson
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.google.gson.** { *; }
+-keep class * extends com.google.gson.TypeAdapter
+-keep class * implements com.google.gson.TypeSerializer
+-keep class * implements com.google.gson.JsonSerializer
+-keep class * implements com.google.gson.JsonDeserializer
+
+# Native libs
+-keepclasseswithmembernames class * { native <methods>; }
+PROGUARD
+
+# AndroidManifest.xml
+mkdir -p "app/src/main/res/xml"
+cat > "app/src/main/AndroidManifest.xml" << 'MANIFEST'
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    
+    <uses-feature android:name="android.software.leanback" android:required="false"/>
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+    
+    <application
+        android:name=".IPTVApplication"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.IPTVPlayer"
+        android:usesCleartextTraffic="true">
+        
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        
+        <service android:name=".ui.player.PlayerService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false"/>
+    </application>
+</manifest>
+MANIFEST
+
+# Data Extraction & Backup Rules
+cat > "app/src/main/res/xml/data_extraction_rules.xml" << 'DATA_RULES'
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="secure_iptv_prefs.xml"/>
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="secure_iptv_prefs.xml"/>
+    </device-transfer>
+</data-extraction-rules>
+DATA_RULES
+
+cat > "app/src/main/res/xml/backup_rules.xml" << 'BACKUP_RULES'
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="sharedpref" path="secure_iptv_prefs.xml"/>
+</full-backup-content>
+BACKUP_RULES
+
+# Resources
+mkdir -p "app/src/main/res/values"
+cat > "app/src/main/res/values/strings.xml" << 'STRINGS'
+<resources>
+    <string name="app_name">IPTV Player</string>
+    <string name="disclaimer_title">Rechtlicher Hinweis</string>
+    <string name="disclaimer_content">Diese Anwendung ist ausschließlich ein Medien-Player und stellt keinerlei Inhalte, Streams, Playlists oder urheberrechtlich geschütztes Material bereit. Der Nutzer ist allein dafür verantwortlich, dass er über die notwendigen Rechte verfügt, um auf Inhalte zuzugreifen, die über diese App wiedergegeben werden. Die Entwickler haften nicht für rechtliche Konsequenzen aus der Nutzung dieser App.</string>
+    <string name="disclaimer_accept">Ich verstehe und akzeptiere</string>
+    <string name="disclaimer_decline">Abbrechen</string>
+    <string name="login_server_url">Server-URL (z.B. http://server:8080)</string>
+    <string name="login_username">Benutzername</string>
+    <string name="login_password">Passwort</string>
+    <string name="login_button">Verbinden</string>
+    <string name="sidebar_live_tv">Live TV</string>
+    <string name="sidebar_movies">Filme</string>
+    <string name="sidebar_series">Serien</string>
+    <string name="sidebar_sport">Sport</string>
+    <string name="sidebar_favorites">Favoriten</string>
+    <string name="sidebar_settings">Einstellungen</string>
+    <string name="player_buffering">Pufferung…</string>
+    <string name="player_error">Wiedergabefehler</string>
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_logout">Abmelden &amp; Daten löschen</string>
+</resources>
+STRINGS
+
+cat > "app/src/main/res/values/colors.xml" << 'COLORS'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="netflix_red">#FFE50914</color>
+    <color name="netflix_bg">#FF141414</color>
+    <color name="netflix_surface">#FF1F1F1F</color>
+</resources>
+COLORS
+
+cat > "app/src/main/res/values/themes.xml" << 'THEMES'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.IPTVPlayer" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/netflix_bg</item>
+        <item name="android:navigationBarColor">@color/netflix_bg</item>
+        <item name="android:windowBackground">@color/netflix_bg</item>
+    </style>
+</resources>
+THEMES
+
+# Create drawable placeholders
+mkdir -p "app/src/main/res/drawable"
+for icon in sidebar_live sidebar_movies sidebar_series sidebar_sport sidebar_favorites sidebar_settings ic_launcher ic_launcher_round; do
+    cat > "app/src/main/res/drawable/${icon}.xml" << ICON
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#333333"/>
+    <size android:width="24dp" android:height="24dp"/>
+</shape>
+ICON
+done
+
+# Mipmap placeholders
+mkdir -p "app/src/main/res/mipmap-hdpi"
+cat > "app/src/main/res/mipmap-hdpi/ic_launcher.png" << 'PNG_PLACEHOLDER'
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==
+PNG_PLACEHOLDER
+# Hinweis: Dies ist ein 1x1 Pixel PNG – ersetzen Sie durch echte Icons
+
+# Kotlin Source Files
+mkdir -p "$SRC_DIR"
+
+# === UTILS ===
+cat > "$SRC_DIR/util/Constants.kt" << 'CONSTANTS'
+package com.yourcompany.iptvplayer.util
+
+object Constants {
+    const val PREFS_NAME = "iptv_prefs"
+    const val KEY_SERVER_URL = "server_url"
+    const val KEY_USERNAME = "username"
+    const val KEY_PASSWORD = "password"
+    const val KEY_IS_LOGGED_IN = "is_logged_in"
+    
+    // Buffer-Konfiguration (Anti-Ruckel)
+    const val MIN_BUFFER_MS = 8000
+    const val MAX_BUFFER_MS = 60000
+    const val PLAYBACK_BUFFER_MS = 10000
+    const val REBUFFER_BUFFER_MS = 15000
+    
+    // ABR-Strategie
+    const val ABR_MIN_DURATION_INCREASE_MS = 15000L
+    const val ABR_MIN_DURATION_DECREASE_MS = 3000L
+    
+    // Preload & Reconnect
+    const val PRELOAD_DURATION_MS = 5000L
+    const val MAX_RECONNECT_ATTEMPTS = 5
+    const val RECONNECT_DELAY_MS = 2000L
+    const val NETWORK_TIMEOUT_MS = 30000
+}
+CONSTANTS
+
+cat > "$SRC_DIR/util/BufferConfig.kt" << 'BUFFER'
+package com.yourcompany.iptvplayer.util
+
+import com.google.android.exoplayer2.DefaultLoadControl
+
+object BufferConfig {
+    fun createLoadControl(): DefaultLoadControl {
+        return DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                Constants.MIN_BUFFER_MS,
+                Constants.MAX_BUFFER_MS,
+                Constants.PLAYBACK_BUFFER_MS,
+                Constants.REBUFFER_BUFFER_MS
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+    }
+}
+BUFFER
+
+cat > "$SRC_DIR/util/EncryptionHelper.kt" << 'ENCRYPT'
+package com.yourcompany.iptvplayer.util
+
+import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+import java.util.Base64
+
+object EncryptionHelper {
+    private const val PREFS_NAME = "secure_iptv_prefs"
+    private const val KEY_ALIAS = "iptv_master_key"
+    private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+    private const val TRANSFORMATION = "AES/GCM/NoPadding"
+    
+    private lateinit var masterKey: MasterKey
+    private lateinit var encryptedPrefs: EncryptedSharedPreferences
+    
+    fun init(context: Context) {
+        masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        encryptedPrefs = EncryptedSharedPreferences.create(
+            context, PREFS_NAME, masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        ) as EncryptedSharedPreferences
+    }
+    
+    fun saveCredentials(context: Context, serverUrl: String, username: String, password: String) {
+        val key = getOrCreateKey()
+        encryptedPrefs.edit()
+            .putString("server_url", encrypt(serverUrl, key))
+            .putString("username", encrypt(username, key))
+            .putString("password", encrypt(password, key))
+            .putBoolean("is_logged_in", true)
+            .apply()
+    }
+    
+    fun getCredentials(context: Context): Triple<String, String, String>? {
+        return try {
+            val key = getOrCreateKey()
+            val url = decrypt(encryptedPrefs.getString("server_url", null) ?: return null, key)
+            val user = decrypt(encryptedPrefs.getString("username", null) ?: return null, key)
+            val pass = decrypt(encryptedPrefs.getString("password", null) ?: return null, key)
+            Triple(url, user, pass)
+        } catch (e: Exception) { null }
+    }
+    
+    fun clearCredentials() {
+        encryptedPrefs.edit().clear().apply()
+    }
+    
+    private fun getOrCreateKey(): SecretKey {
+        val keyStore = java.security.KeyStore.getInstance(ANDROID_KEYSTORE)
+        keyStore.load(null)
+        return keyStore.getKey(KEY_ALIAS, null) as? SecretKey ?: createKey()
+    }
+    
+    private fun createKey(): SecretKey {
+        val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        val spec = KeyGenParameterSpec.Builder(KEY_ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256).build()
+        keyGenerator.init(spec)
+        return keyGenerator.generateKey()
+    }
+    
+    private fun encrypt(data: String, key: SecretKey): String {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        return Base64.getEncoder().encodeToString(cipher.iv + cipher.doFinal(data.toByteArray()))
+    }
+    
+    private fun decrypt(encryptedData: String, key: SecretKey): String {
+        val decoded = Base64.getDecoder().decode(encryptedData)
+        val iv = decoded.copyOfRange(0, 12)
+        val actual = decoded.copyOfRange(12, decoded.size)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+        return String(cipher.doFinal(actual))
+    }
+}
+ENCRYPT
+
+# === APPLICATION ===
+cat > "$SRC_DIR/IPTVApplication.kt" << 'APP'
+package com.yourcompany.iptvplayer
+
+import android.app.Application
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
+import com.yourcompany.iptvplayer.util.EncryptionHelper
+import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
+
+@HiltAndroidApp
+class IPTVApplication : Application(), Configuration.Provider {
+    @Inject lateinit var workerFactory: HiltWorkerFactory
+    
+    override fun onCreate() {
+        super.onCreate()
+        EncryptionHelper.init(this)
+    }
+    
+    override fun getWorkManagerConfiguration(): Configuration {
+        return Configuration.Builder().setWorkerFactory(workerFactory).build()
+    }
+}
+APP
+
+# === DATA MODELS ===
+mkdir -p "$SRC_DIR/data/model"
+cat > "$SRC_DIR/data/model/UserCredentials.kt" << 'CRED'
+package com.yourcompany.iptvplayer.data.model
+
+data class UserCredentials(
+    val serverUrl: String,
+    val username: String,
+    val password: String
+) {
+    fun generateM3uUrl(): String =
+        "${serverUrl.removeSuffix("/")}/get.php?username=$username&password=$password&type=m3u_plus&output=ts"
+    
+    fun generateXtreamUrl(): String =
+        "${serverUrl.removeSuffix("/")}/player_api.php?username=$username&password=$pass"
+}
+CRED
+
+cat > "$SRC_DIR/data/model/Channel.kt" << 'CHANNEL'
+package com.yourcompany.iptvplayer.data.model
+
+data class Channel(
+    val id: String,
+    val name: String,
+    val streamUrl: String,
+    val logoUrl: String?,
+    val category: String,
+    val epgId: String? = null
+)
+CHANNEL
+
+cat > "$SRC_DIR/data/model/Category.kt" << 'CATEGORY'
+package com.yourcompany.iptvplayer.data.model
+
+data class Category(
+    val id: String,
+    val name: String,
+    val iconRes: Int,
+    val type: CategoryType
+)
+
+enum class CategoryType { LIVE, MOVIES, SERIES, SPORT, FAVORITES, SETTINGS }
+CATEGORY
+
+# === REPOSITORY ===
+mkdir -p "$SRC_DIR/data/repository"
+cat > "$SRC_DIR/data/repository/AuthRepository.kt" << 'AUTH_REPO'
+package com.yourcompany.iptvplayer.data.repository
+
+import android.content.Context
+import com.yourcompany.iptvplayer.util.EncryptionHelper
+import javax.inject.Inject
+
+class AuthRepository @Inject constructor(private val context: Context) {
+    
+    fun saveCredentials(serverUrl: String, username: String, password: String) {
+        EncryptionHelper.saveCredentials(context, serverUrl, username, password)
+    }
+    
+    fun getCredentials(): Triple<String, String, String>? {
+        return EncryptionHelper.getCredentials(context)
+    }
+    
+    fun isLoggedIn(): Boolean {
+        return EncryptionHelper.getCredentials(context) != null
+    }
+    
+    fun logout() {
+        EncryptionHelper.clearCredentials()
+    }
+}
+AUTH_REPO
+
+# === PLAYER ENGINE ===
+mkdir -p "$SRC_DIR/ui/player"
+cat > "$SRC_DIR/ui/player/ExoPlayerWrapper.kt" << 'PLAYER'
+package com.yourcompany.iptvplayer.ui.player
+
+import android.content.Context
+import android.net.Uri
+import android.view.SurfaceView
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import com.yourcompany.iptvplayer.util.BufferConfig
+import com.yourcompany.iptvplayer.util.Constants
+import kotlinx.coroutines.*
+import kotlin.coroutines.CoroutineContext
+
+@UnstableApi
+class ExoPlayerWrapper(
+    private val context: Context,
+    private val onReady: () -> Unit,
+    private val onError: (Exception) -> Unit,
+    private val onBuffering: (Boolean) -> Unit
+) : CoroutineScope {
+    
+    private var player: ExoPlayer? = null
+    private var preloadJob: Job? = null
+    private var reconnectAttempts = 0
+    override val coroutineContext: CoroutineContext = Dispatchers.Main
+    
+    fun initialize(surfaceView: SurfaceView) {
+        val trackSelector = DefaultTrackSelector(context).apply {
+            setParameters(buildUponParameters().setForceHighestSupportedBitrate(true))
+        }
+        
+        player = ExoPlayer.Builder(context)
+            .setTrackSelector(trackSelector)
+            .setLoadControl(BufferConfig.createLoadControl())
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build().apply {
+                repeatMode = Player.REPEAT_MODE_OFF
+                playWhenReady = false
+                prepare()
+            }
+        
+        player?.addListener(object : Player.Listener {
+            override fun onIsLoadingChanged(isLoading: Boolean) = onBuffering(isLoading)
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) = handlePlayerError(error)
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) { onReady(); reconnectAttempts = 0 }
+            }
+        })
+    }
+    
+    fun preloadStream(streamUrl: String) {
+        preloadJob?.cancel()
+        preloadJob = launch {
+            delay(Constants.PRELOAD_DURATION_MS)
+            playStream(streamUrl)
+        }
+    }
+    
+    fun playStream(streamUrl: String) {
+        try {
+            val mediaItem = MediaItem.fromUri(Uri.parse(streamUrl))
+            val dataSourceFactory = DefaultDataSource.Factory(
+                context,
+                DefaultHttpDataSource.Factory().apply {
+                    setUserAgent("IPTVPlayer/1.0")
+                    setConnectTimeoutMs(Constants.NETWORK_TIMEOUT_MS)
+                    setReadTimeoutMs(Constants.NETWORK_TIMEOUT_MS)
+                    setAllowCrossProtocolRedirects(true)
+                }
+            )
+            val mediaSource = DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(mediaItem)
+            player?.setMediaSource(mediaSource)
+            player?.prepare()
+            player?.playWhenReady = true
+        } catch (e: Exception) { onError(e) }
+    }
+    
+    private fun handlePlayerError(error: androidx.media3.common.PlaybackException) {
+        if (reconnectAttempts < Constants.MAX_RECONNECT_ATTEMPTS) {
+            reconnectAttempts++
+            launch {
+                delay(Constants.RECONNECT_DELAY_MS * reconnectAttempts)
+                player?.prepare()
+                player?.playWhenReady = true
+            }
+        } else { onError(Exception("Max reconnect attempts: ${error.message}")) }
+    }
+    
+    fun release() { preloadJob?.cancel(); player?.release(); player = null }
+    fun pause() = player?.pause()
+    fun resume() = player?.play()
+    fun seekTo(pos: Long) = player?.seekTo(pos)
+    fun getCurrentPosition(): Long = player?.currentPosition ?: 0L
+}
+PLAYER
+
+# === LOGIN VIEWMODEL ===
+mkdir -p "$SRC_DIR/ui/login"
+cat > "$SRC_DIR/ui/login/LoginViewModel.kt" << 'LOGIN_VM'
+package com.yourcompany.iptvplayer.ui.login
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.yourcompany.iptvplayer.data.repository.AuthRepository
+import com.yourcompany.iptvplayer.util.EncryptionHelper
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class LoginViewModel @Inject constructor(
+    private val authRepository: AuthRepository
+) : ViewModel() {
+    
+    private val _uiState = MutableStateFlow(LoginUiState())
+    val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
+    
+    private val _navigation = MutableStateFlow<LoginNavigationEvent?>(null)
+    val navigation: StateFlow<LoginNavigationEvent?> = _navigation.asStateFlow()
+    
+    fun onDisclaimerAccepted() { _uiState.value = _uiState.value.copy(disclaimerAccepted = true) }
+    fun onServerUrlChanged(url: String) { _uiState.value = _uiState.value.copy(serverUrl = url.trim()) }
+    fun onUsernameChanged(username: String) { _uiState.value = _uiState.value.copy(username = username.trim()) }
+    fun onPasswordChanged(password: String) { _uiState.value = _uiState.value.copy(password = password) }
+    
+    fun onLoginClicked() {
+        val state = _uiState.value
+        if (!state.disclaimerAccepted) { _navigation.value = LoginNavigationEvent.ShowDisclaimer; return }
+        if (!validateInput(state)) return
+        
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                EncryptionHelper.saveCredentials(
+                    android.content.Context::class.java.getDeclaredField("INSTANCE").let { 
+                        it.isAccessible = true; it.get(null) as android.content.Context 
+                    }, state.serverUrl, state.username, state.password
+                )
+                authRepository.saveCredentials(state.serverUrl, state.username, state.password)
+                _navigation.value = LoginNavigationEvent.NavigateToHome
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoading = false, error = "Login failed: ${e.localizedMessage}")
+            }
+        }
+    }
+    
+    private fun validateInput(state: LoginUiState): Boolean = when {
+        state.serverUrl.isBlank() -> { _uiState.value = _uiState.value.copy(error = "Server-URL required"); false }
+        state.username.isBlank() -> { _uiState.value = _uiState.value.copy(error = "Username required"); false }
+        state.password.isBlank() -> { _uiState.value = _uiState.value.copy(error = "Password required"); false }
+        !state.serverUrl.startsWith("http", ignoreCase = true) -> { _uiState.value = _uiState.value.copy(error = "URL must start with http(s)"); false }
+        else -> true
+    }
+}
+
+data class LoginUiState(
+    val serverUrl: String = "", val username: String = "", val password: String = "",
+    val disclaimerAccepted: Boolean = false, val isLoading: Boolean = false, val error: String? = null
+)
+
+sealed class LoginNavigationEvent {
+    object ShowDisclaimer : LoginNavigationEvent()
+    object NavigateToHome : LoginNavigationEvent()
+}
+LOGIN_VM
+
+# === DISCLAIMER DIALOG ===
+cat > "$SRC_DIR/ui/login/DisclaimerDialog.kt" << 'DISCLAIMER'
+package com.yourcompany.iptvplayer.ui.login
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import com.yourcompany.iptvplayer.R
+
+@Composable
+fun DisclaimerDialog(onAccept: () -> Unit, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth(0.95f).padding(16.dp)) {
+            Column(modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState())) {
+                Text(text = stringResource(R.string.disclaimer_title), style = MaterialTheme.typography.headlineSmall)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(text = stringResource(R.string.disclaimer_content), style = MaterialTheme.typography.bodyMedium,
+                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.4)
+                Spacer(modifier = Modifier.height(24.dp))
+                DisclaimerPoint("✓ Diese App stellt KEINE Inhalte bereit")
+                DisclaimerPoint("✓ Nutzer sind selbst verantwortlich für geladene Inhalte")
+                DisclaimerPoint("✓ Keine vorinstallierten Streams oder Playlists")
+                Spacer(modifier = Modifier.height(32.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.disclaimer_decline)) }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = onAccept) { Text(stringResource(R.string.disclaimer_accept)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun DisclaimerPoint(text: String) {
+    Text(text = text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 4.dp))
+}
+DISCLAIMER
+
+# === HOME SCREEN (Netflix Style) ===
+mkdir -p "$SRC_DIR/ui/home"
+cat > "$SRC_DIR/ui/home/HomeScreen.kt" << 'HOME'
+package com.yourcompany.iptvplayer.ui.home
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import com.yourcompany.iptvplayer.data.model.Category
+import com.yourcompany.iptvplayer.data.model.Channel
+
+@Composable
+fun HomeScreen(
+    categories: List<Category>,
+    onCategorySelected: (Category) -> Unit,
+    onChannelClick: (Channel) -> Unit,
+    onSettingsClick: () -> Unit
+) {
+    MaterialTheme(colorScheme = darkColorScheme(
+        primary = Color(0xFFE50914), background = Color(0xFF141414),
+        surface = Color(0xFF1F1F1F), onBackground = Color.White, onSurface = Color.White
+    )) {
+        Scaffold(modifier = Modifier.fillMaxSize(), containerColor = MaterialTheme.colorScheme.background) { padding ->
+            Row(modifier = Modifier.fillMaxSize().padding(padding)) {
+                Sidebar(categories, onCategorySelected, onSettingsClick,
+                    modifier = Modifier.width(200.dp).background(MaterialTheme.colorScheme.surface))
+                ContentArea(onChannelClick, modifier = Modifier.weight(1f).padding(16.dp))
+            }
+        }
+    }
+}
+
+@Composable private fun Sidebar(
+    categories: List<Category>, onCategorySelected: (Category) -> Unit,
+    onSettingsClick: () -> Unit, modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Box(modifier = Modifier.height(80.dp).fillMaxWidth().padding(16.dp),
+            contentAlignment = Alignment.CenterStart) {
+            Text(text = "IPTV Player", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        }
+        categories.forEach { cat ->
+            SidebarItem(cat.name, cat.iconRes, false, { onCategorySelected(cat) },
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        SidebarItem("Einstellungen", com.yourcompany.iptvplayer.R.drawable.sidebar_settings,
+            false, onSettingsClick, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+    }
+}
+
+@Composable private fun SidebarItem(
+    title: String, icon: Int, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier
+) {
+    Surface(onClick = onClick,
+        color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent,
+        shape = MaterialTheme.shapes.small, modifier = modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(24.dp).background(
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), MaterialTheme.shapes.small))
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(text = title, style = MaterialTheme.typography.bodyLarge,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+@Composable private fun ContentArea(onChannelClick: (Channel) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Box(modifier = Modifier.height(200.dp).fillMaxWidth()
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(
+                listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent))),
+            contentAlignment = Alignment.BottomStart) {
+            Text(text = "Willkommen bei IPTV Player", style = MaterialTheme.typography.headlineMedium,
+                color = Color.White, modifier = Modifier.padding(16.dp))
+        }
+        ContentRow("Beliebt jetzt", listOf(), onChannelClick)
+        ContentRow("Neu hinzugefügt", listOf(), onChannelClick)
+    }
+}
+
+@Composable private fun ContentRow(title: String, channels: List<Channel>, onChannelClick: (Channel) -> Unit) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(text = title, style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+        LazyRow(contentPadding = PaddingValues(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(channels) { channel ->
+                ChannelCard(channel, { onChannelClick(channel) }, modifier = Modifier.width(160.dp))
+            }
+        }
+    }
+}
+
+@Composable private fun ChannelCard(channel: Channel, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(onClick = onClick, shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surface, modifier = modifier) {
+        Column {
+            Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f/9f)
+                .background(Color(0xFF333333)), contentAlignment = Alignment.Center) {
+                Text(text = channel.name.take(2).uppercase(), style = MaterialTheme.typography.labelLarge,
+                    color = Color.White.copy(alpha = 0.7f))
+            }
+            Text(text = channel.name, style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2, modifier = Modifier.padding(8.dp))
+        }
+    }
+}
+HOME
+
+# === MAIN ACTIVITY ===
+cat > "$SRC_DIR/MainActivity.kt" << 'MAIN'
+package com.yourcompany.iptvplayer
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.yourcompany.iptvplayer.ui.home.HomeScreen
+import com.yourcompany.iptvplayer.ui.login.DisclaimerDialog
+import com.yourcompany.iptvplayer.ui.login.LoginNavigationEvent
+import com.yourcompany.iptvplayer.ui.login.LoginViewModel
+import com.yourcompany.iptvplayer.ui.login.LoginUiState
+import dagger.hilt.android.AndroidEntryPoint
+
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            val loginVm: LoginViewModel = hiltViewModel()
+            val uiState = loginVm.uiState.collectAsState()
+            val navigation = loginVm.navigation.collectAsState()
+            
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                if (uiState.value.isLoggedIn || false) {
+                    HomeScreen(
+                        categories = listOf(), // Aus ViewModel laden
+                        onCategorySelected = {},
+                        onChannelClick = {},
+                        onSettingsClick = {}
+                    )
+                } else {
+                    LoginScreen(loginVm)
+                    if (navigation.value == LoginNavigationEvent.ShowDisclaimer && !uiState.value.disclaimerAccepted) {
+                        DisclaimerDialog(
+                            onAccept = { loginVm.onDisclaimerAccepted() },
+                            onDismiss = { /* App schließen oder wiederholen */ }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun LoginScreen(viewModel: LoginViewModel) {
+    // Einfache Login-UI - kann mit Compose erweitert werden
+    androidx.compose.material3.Text(text = "Login Screen Placeholder")
+}
+MAIN
+
+# === DI MODULES ===
+mkdir -p "$SRC_DIR/di"
+cat > "$SRC_DIR/di/AppModule.kt" << 'DIMOD'
+package com.yourcompany.iptvplayer.di
+
+import android.content.Context
+import com.yourcompany.iptvplayer.data.repository.AuthRepository
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object AppModule {
+    @Provides @Singleton
+    fun provideAuthRepository(@ApplicationContext context: Context): AuthRepository =
+        AuthRepository(context)
+}
+DIMOD
+
+# === NAVIGATION ===
+mkdir -p "$SRC_DIR/navigation"
+cat > "$SRC_DIR/navigation/AppNavHost.kt" << 'NAV'
+package com.yourcompany.iptvplayer.navigation
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+
+@Composable
+fun AppNavHost() {
+    val navController = rememberNavController()
+    NavHost(navController, startDestination = "login") {
+        composable("login") { /* LoginScreen */ }
+        composable("home") { /* HomeScreen */ }
+        composable("player/{channelId}") { /* PlayerScreen */ }
+        composable("settings") { /* SettingsScreen */ }
+    }
+}
+NAV
+
+echo "✅ Projektstruktur erstellt!"
+echo ""
+echo "📁 Projekt befindet sich in: $(pwd)"
+echo ""
+echo "🚀 Nächste Schritte:"
+echo "  1. Öffnen Sie das Projekt in Android Studio"
+echo "  2. Warten Sie auf Gradle Sync (kann einige Minuten dauern)"
+echo "  3. Erstellen Sie ein virtuelles Gerät oder verbinden Sie ein physisches Gerät"
+echo "  4. Klicken Sie auf ▶️ Run 'app'"
+echo ""
+echo "⚠️  Hinweis: Für FFmpeg-Unterstützung müssen die nativen .so-Dateien"
+echo "    aus dem KanTV-Repository in app/src/main/jniLibs/ kopiert werden."
+echo "    Ohne diese funktioniert ExoPlayer weiterhin mit Standard-Codecs."
+echo ""
+echo "🔗 KanTV Native Libs: https://github.com/kantv-ai/kantv/releases"
+echo ""
+echo "✨ Viel Erfolg mit Ihrer IPTV-App!"
