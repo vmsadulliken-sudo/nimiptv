@@ -1,0 +1,66 @@
+# .github/workflows/build-android-apk.yml
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Ermöglicht manuellen Start
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Repository auschecken
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      # 2. Java JDK 17 einrichten
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+      
+      # 3. Gradle Cache aktivieren
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+      
+      # 4. Build-Tools installieren
+      - name: Install Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget unzip
+      
+      # 5. Android SDK Lizenz akzeptieren
+      - name: Accept Android Licenses
+        run: |
+          mkdir -p ~/.android
+          echo "count=1" > ~/.android/repositories.cfg
+          yes | sdkmanager --licenses || true
+      
+      # 6. Gradle Wrapper ausführbar machen
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      # 7. Dependencies herunterladen & Build
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+      
+      # 8. APK als Artifact hochladen
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iptv-player-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+      
+      # 9. Build-Informationen anzeigen
+      - name: Build Summary
+        run: |
+          echo "✅ Build erfolgreich!"
+          echo "📦 APK Größe: $(du -h app/build/outputs/apk/debug/app-debug.apk | cut -f1)"
+          echo "📅 Build Zeit: $(date)"
